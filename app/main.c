@@ -5,6 +5,9 @@
 
 // Usage: your_docker.sh run <image> <command> <arg1> <arg2> ...
 int main(int argc, char *argv[]) {
+	// Disable output buffering
+	setbuf(stdout, NULL);
+
 	int pipefd[2];
 	int pipefderr[2];
 
@@ -17,14 +20,12 @@ int main(int argc, char *argv[]) {
 		printf("was not able to create pipe for stderr");
 		exit(EXIT_FAILURE);
 	}
-	// Disable output buffering
-	setbuf(stdout, NULL);
 
 	char *command = argv[3];
 	int child_pid = fork();
 	if (child_pid == -1) {
 	    printf("Error forking!");
-	    return 1;
+	    exit(EXIT_FAILURE);
 	}
 
 	if (child_pid == 0) {
@@ -43,7 +44,8 @@ int main(int argc, char *argv[]) {
 		close(pipefd[1]);
 		close(pipefderr[1]);
 
-		execv(command, &argv[3]);
+		int exec_status = execv(command, &argv[3]);
+		exit(EXIT_SUCCESS);
 	} else {
 		// We're in parent
 		close(pipefd[1]); // close write end of the pipe
@@ -60,8 +62,17 @@ int main(int argc, char *argv[]) {
 		close(pipefderr[0]); // close read end of the pipe
 		fflush(stdout);
 		fflush(stderr);
-		wait(NULL);
+		int child_exit_code = 0;
+		int wait_return_val = -1;
+		wait_return_val = waitpid(child_pid, &child_exit_code, 0);
+		if ( wait_return_val == -1) {
+			exit(EXIT_FAILURE);
+		}
+
+		if (WIFEXITED(child_exit_code)) {
+			exit(WEXITSTATUS(child_exit_code));
+		}
 	}
 
-	return 0;
+	exit(EXIT_FAILURE);
 }
