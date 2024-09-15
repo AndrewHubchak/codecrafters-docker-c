@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+#include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/wait.h>
@@ -9,8 +11,13 @@
 #include <sys/mman.h>
 #include <fcntl.h>
 
+
 const char* tmpDirectory = "./sandbox";
 const char* sandboxCommand = "./sandbox/ex";
+
+bool createNewPidNamespace() {
+	return unshare(CLONE_NEWPID) == -1;
+}
 
 bool createDir(const char* dirName) {
 	struct stat st = {0};
@@ -66,6 +73,8 @@ int main(int argc, char *argv[]) {
 
 	copy_file(command, sandboxCommand);
 	chroot(tmpDirectory);
+
+	createNewPidNamespace();
 
 	int child_pid = fork();
 	if (child_pid == 0) {
