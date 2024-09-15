@@ -11,6 +11,7 @@
 #include <sys/mman.h>
 #include <fcntl.h>
 
+#include "cJSON.h"
 
 const char* tmpDirectory = "./sandbox";
 const char* sandboxCommand = "./sandbox/ex";
