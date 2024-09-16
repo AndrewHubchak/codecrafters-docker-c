@@ -12,9 +12,9 @@
 #include <fcntl.h>
 
 #include "cJSON.h"
+#include "Docker.h"
 
 const char* tmpDirectory = "./sandbox";
-const char* sandboxCommand = "./sandbox/ex";
 
 bool createNewPidNamespace() {
 	return unshare(CLONE_NEWPID) == -1;
@@ -31,22 +31,17 @@ bool createDir(const char* dirName) {
 	return result;
 }
 
-void copy_file(const char *from, const char *to) {
+void copyFile(const char *from, const char *to) {
 	struct stat file_stats;
 	int fd_from = open(from, O_RDONLY);
 
 	fstat(fd_from, &file_stats);
-
 	void *address = mmap(0, file_stats.st_size, PROT_READ, MAP_PRIVATE, fd_from, 0);
-
 	int fd_to = creat(to, 0777);
-
 	write(fd_to, address, file_stats.st_size);
-
+;
 	close(fd_from);
-
 	close(fd_to);
-
 }
 
 // Usage: your_docker.sh run <image> <command> <arg1> <arg2> ...
@@ -68,11 +63,12 @@ int main(int argc, char *argv[]) {
 		exit(status);
 	}
 
-	const char *command = argv[3];
-
 	createDir(tmpDirectory);
 
-	copy_file(command, sandboxCommand);
+	PullDockerImage(argv[2], tmpDirectory);
+        const char* command = argv[3];
+        char** args = &argv[3];
+
 	chroot(tmpDirectory);
 
 	createNewPidNamespace();
@@ -94,7 +90,7 @@ int main(int argc, char *argv[]) {
 		close(pipefd[1]);
 		close(pipefderr[1]);
 
-		int exec_status = execv(sandboxCommand, &argv[3]);
+		int exec_status = execv(command, args);
 		status = EXIT_SUCCESS;
 	} else if (child_pid > 0) {
 		// We're in parent
@@ -112,16 +108,8 @@ int main(int argc, char *argv[]) {
 		close(pipefderr[0]); // close read end of the pipe
 		fflush(stdout);
 		fflush(stderr);
-		int child_exit_code = 0;
-		int wait_return_val = -1;
-		wait_return_val = waitpid(child_pid, &child_exit_code, 0);
-		if (wait_return_val == -1) {
-			exit(EXIT_FAILURE);
-		}
 
-		if (WIFEXITED(child_exit_code)) {
-			exit(WEXITSTATUS(child_exit_code));
-		}
+		status = WaitForProcessReturnCode(child_pid);
 	} else {
 	    printf("Error forking!");
 	    status = EXIT_FAILURE;
